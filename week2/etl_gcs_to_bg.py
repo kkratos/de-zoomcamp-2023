@@ -8,12 +8,15 @@ from prefect_gcp import GcpCredentials
 def extract_from_gcs(color: str, dataset_file:str) -> Path:
     """Download trip data from GCS"""
 
-    gcs_path = Path(f"data/{color}/{dataset_file}.parquet")
+    gcs_path = f"data/{color}/{dataset_file}.parquet"  # GCS path as a string
+    local_dir = Path("./data") / color  # Local directory to save the file
+    local_dir.mkdir(parents=True, exist_ok=True)  # Ensure local directory exists
 
     gcs_block = GcsBucket.load("zoom-gcs")
-    gcs_block.get_directory(from_path=gcs_path, local_path=f"../")
-    
-    return Path(f"../{gcs_path}")
+    local_path = local_dir / f"{dataset_file}.parquet"  # Full local path to save the file
+
+    gcs_block.get_directory(from_path=gcs_path, local_path=local_path)
+    return local_path
 
 
 @task(log_prints=True)
@@ -28,11 +31,11 @@ def transform(path: Path) -> pd.DataFrame:
 def write_bq(df: pd.DataFrame) -> None:
     """Write DataFrame to BigQuery"""
     
-    gcp_credentials_block = GcpCredentials.load("zoom-gcp-creds")
+    gcp_credentials_block = GcpCredentials.load("zoom-gcp-cred")
 
     df.to_gbq(
-        destination_table="dezoomcamp.rides",
-        project_id="dez-de-404011",
+        destination_table="destination-folder",
+        project_id="project-id",
         credentials=gcp_credentials_block.get_credentials_from_service_account(),
         chunksize=500000,
         if_exists="append"

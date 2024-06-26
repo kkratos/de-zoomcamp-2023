@@ -31,13 +31,13 @@ def write_local(df:pd.DataFrame, color:str, dataset_file:str) -> Path:
     path = Path(f"../data/{color}/{dataset_file}.parquet")
     path_gcp = Path(f"data/{color}/{dataset_file}.parquet")
     df.to_parquet(path, compression="gzip")
+    
     return path, path_gcp
 
-
 @task()
-def write_gcs(path:Path, path_gcp: Path) -> None:
+def write_gcs(path:Path, color:str, dataset_file:str) -> None:
     """Upload the parquet file to gcs"""
-
+    path_gcp = f"data/{color}/{dataset_file}.parquet"
     gcp_storage_block = GcsBucket.load("zoom-gcs")
     gcp_storage_block.upload_from_path(from_path = f"{path}", to_path=path_gcp)
     return 
