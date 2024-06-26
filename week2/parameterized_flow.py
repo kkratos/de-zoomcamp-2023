@@ -26,22 +26,32 @@ def clean(df=pd.DataFrame) -> pd.DataFrame:
     print(f"rows: {len(df)}")
     return df
 
-@task()
-def write_local(df:pd.DataFrame, color:str, dataset_file:str) -> Path:
+from pathlib import Path
+import pandas as pd
+from prefect import task
+from prefect_gcp.cloud_storage import GcsBucket
+
+@task(log_prints=True)
+def write_local(df: pd.DataFrame, color: str, dataset_file: str) -> Path:
     """Write Dataframe out as parquet file"""
+    
+    # Local directory to save the file
+    local_dir = Path("data") / color  
+    local_dir.mkdir(parents=True, exist_ok=True)  # Ensure local directory exists
 
-    path = Path(f"../data/{color}/{dataset_file}.parquet")
-    path_gcp = Path(f"data/{color}/{dataset_file}.parquet")
+    # Path to save the parquet file
+    path = local_dir / f"{dataset_file}.parquet"
     df.to_parquet(path, compression="gzip")
-    return path, path_gcp
+    print(path.as_posix())
+    return path
 
-
-@task()
-def write_gcs(path:Path, path_gcp: Path) -> None:
-    """Upload the parquet file to gcs"""
+@task(log_prints=True)
+def write_gcs(path: Path) -> None:
+    """Upload the parquet file to GCS"""
 
     gcp_storage_block = GcsBucket.load("zoom-gcs")
-    gcp_storage_block.upload_from_path(from_path = f"{path}", to_path=path_gcp)
+    gcp_storage_block.upload_from_path(from_path=path, to_path=path.as_posix())
+
     return 
 
 @flow()
@@ -53,9 +63,8 @@ def etl_web_to_gcs(year:int, month:int, color:str) -> None:
 
     df = fetch(dataset_url)
     df_clean = clean(df)
-    path, path_gcp = write_local(df_clean, color, dataset_file)
-    write_gcs(path, path_gcp)
-
+    path = write_local(df_clean, color, dataset_file)
+    write_gcs(path)
 
 @flow()
 def etl_parent_flow(
